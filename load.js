@@ -7,11 +7,41 @@ if(!window.location.href.startsWith("https://ddsmedlem.cbrain.dk/"))
 //  Inject links
 if(window.location.href == "https://ddsmedlem.cbrain.dk/simple.aspx?func=export.view&helpkey=organization.trustcodelist")
   build( 'a:onclick=?("Export to Contacts")', null, 'input[type=submit]', runFromPopup);
+if(window.location.href == "https://ddsmedlem.cbrain.dk/member.aspx?func=organization.trustcodelist")
+  build( 'a:onclick=?("Export to Contacts")', 'div.buttons-bottom', null, runFromList);
+
+
+function runFromList(ev)
+{
+  var doc = ev.__proto__ === ProgressEvent.prototype ? xhrToDoc(ev.target) : document;
+  var form = doc.forms[0];
+  var inputs = form.querySelectorAll('input[type=checkbox][checked],select,input[type=submit][name*=exportButton],input[type=hidden]');
+  var override = {
+    "T$P$M$Main$form1$filterDropDown": "onlyScouts",
+    "T$P$M$Main$form1$exportChoice": "BothRelativeAndMember"
+  };
+  var action = form.getAttribute('action');
+
+  doPost( null, action, inputs, loadPopup, override);
+}
+
+
+function loadPopup(ev)
+{
+  //  'this' is the xhr of clicking the Export button
+  //  it contains a link toward the popup
+  var doc = ev.__proto__ === ProgressEvent.prototype ? xhrToDoc(ev.target) : document;
+  var alink = doc.querySelector('a[onclick*="export.view"]');
+  var href = alink.getAttribute('onclick').match(/'(.+?)'/)[1];
+  doGet( this, href, runFromPopup);
+}
+
 
 //  Respond to click in popup
 function runFromPopup(ev){
   console.log(["runFromPopup", ev, this]);
-  var form = document.forms[0];
+  var doc = ev.__proto__ === ProgressEvent.prototype ? xhrToDoc(ev.target) : document;
+  var form = doc.forms[0];
   //  Intentionally disregarding the checked-state
   var inputs = form.querySelectorAll('input[type=checkbox],input[type=submit][name*=exportButton],input[type=hidden]');
   var action = form.getAttribute('action');
