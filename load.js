@@ -9,6 +9,8 @@ if(window.location.href == "https://ddsmedlem.cbrain.dk/simple.aspx?func=export.
   build( 'a:onclick=?("Export to Contacts")', null, 'input[type=submit]', runFromPopup);
 if(window.location.href == "https://ddsmedlem.cbrain.dk/member.aspx?func=organization.trustcodelist")
   build( 'a:onclick=?("Export to Contacts")', 'div.buttons-bottom', null, runFromList);
+// if(window.location.href == "https://ddsmedlem.cbrain.dk/mypage.aspx?func=mypage.myaccess")
+//   build( 'a:onclick=?("Export to Contacts")', 'div.buttons-bottom', null, runFromList);
 
 
 function runFromList(ev)
@@ -153,5 +155,11 @@ function doPost( xhr, action, inputs=[], onload, override, overrideMime) {
   xhr.send(data);
   return xhr;
 }
+
+function xhrToDoc(xhr)
+{
+  return (new DOMParser()).parseFromString(xhr.responseText, 'text/html')
+}
+
 
 })()
