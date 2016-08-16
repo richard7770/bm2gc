@@ -15,7 +15,7 @@ function runFromPopup(ev){
   //  Intentionally disregarding the checked-state
   var inputs = form.querySelectorAll('input[type=checkbox],input[type=submit][name*=exportButton],input[type=hidden]');
   var action = form.getAttribute('action');
-  doPost( this, action, inputs, handleCsv, undefined, 'text/plain; charset=latin1');
+  doPost( null, action, inputs, handleCsv, undefined, 'text/plain; charset=latin1');
 }
 
 //  Show the CSV contents
