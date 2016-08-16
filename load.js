@@ -1,12 +1,12 @@
 (function(){
 
 //  Check location 
-window.location.href.startsWith("https://ddsmedlem.cbrain.dk/")
-  || return console.log("Location not recognized.");
+if(!window.location.href.startsWith("https://ddsmedlem.cbrain.dk/"))
+  return console.log("Location not recognized.");
   
 //  Inject links
-window.location.href == "https://ddsmedlem.cbrain.dk/simple.aspx?func=export.view&helpkey=organization.trustcodelist"
-  && build( 'a:onclick=?("Export to Contacts")', null, 'input[type=submit]', runFromPopup);
+if(window.location.href == "https://ddsmedlem.cbrain.dk/simple.aspx?func=export.view&helpkey=organization.trustcodelist")
+  build( 'a:onclick=?("Export to Contacts")', null, 'input[type=submit]', runFromPopup);
 
 //  Respond to click in popup
 function runFromPopup(ev){
