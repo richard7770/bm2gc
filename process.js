@@ -47,29 +47,72 @@ function establishChannel() {
   return dfd;
 }
 
+var rel = {
+  'home': 'http://schemas.google.com/g/2005#home',
+  'work': 'http://schemas.google.com/g/2005#work',
+  'other': 'http://schemas.google.com/g/2005#other',
+  'mobile': 'http://schemas.google.com/g/2005#mobile',
+};
+
+var rawPhone = {
+  'home': 'kontaktPrivatTlf',
+  'mobile': 'kontaktMobilTlf',
+  'work': 'kontaktArbejdeTlf',
+};
+
+var rawEmail = {
+  'home': 'kontaktPrimrEmail',
+  'other': 'kontaktEkstraEmailAdresser',
+};
+
 //  Create group objects
 function handleCsv(csv) {
   console.log('handleCsv');
-
   var record, records=[], primary=[], secondary=[];
-  parseCsv( csv, (raw)=>{
-    //  Set common fields
-    records.push(record={});
-    record.name        = raw.kontaktNavn;
-    record.mobilePhone = raw.kontaktMobilTlf;
-    record.homePhone   = raw.kontaktPrivatTlf;
-    record.workPhone   = raw.kontaktArbejdeTlf;
-    record.homeEmail   = raw.kontaktPrimrEmail;
-    record.otherEmail  = raw.kontaktEkstraEmailAdresser;
-    record.homeAddress = raw.kontaktAdresse+'\n'+raw.kontaktPostnrby+'\n'+raw.kontaktLandenavn
-
+  parseCsv( csv, (record)=>{
+    records.push(record);
+    var gcEntry = record.gcEntry = {
+      'gd$name': {'gd$fullName':{'$t':record.kontaktNavn}},
+      'gd$phoneNumber': [],
+      'gd$email': [],
+      'gd$structuredPostalAddress': [],
+      'gContact$groupMembershipInfo': [],
+    };
+    //  Add address
+    gcEntry.gd$structuredPostalAddress.push({
+      'rel': rel.home,
+      'gd$formattedAddress':{'$t':
+        record.kontaktAdresse+'\n'+record.kontaktPostnrby+'\n'+record.kontaktLandenavn }
+    });
+    for (var r in rel){
+      //  Add phone
+      var value = record[rawPhone[r]];
+      if( value)  gcEntry.gd$phoneNumber.push({
+        'rel':rel[r],
+        '$t':value,
+        'primary': r=='mobile'
+      });
+      //  Add email
+      value = record[rawEmail[r]];
+      if( value) gcEntry.gd$email.push({
+        'rel':rel[r],
+        '$t':value,
+        'primary': r=='home'
+      });
+    }
     //  Identify primary records
-    if( raw.medlemsnavn == raw.kontaktNavn) {
+    if( record.medlemsnavn == record.kontaktNavn) {
       primary.push(record);
       record.isPrimary = true;
-      //  Set primary-only fields
-      record.birthday = raw.fdselsdato      .split('-').reverse().join('-');
-      record.joinDds  = raw.indmeldelsesdato.split('-').reverse().join('-');
+      //  Add primary-only fields
+      if(record.fdselsdato)
+        gcEntry.gContact$birthday = {'when': record.fdselsdato.split('-').reverse().join('-')};
+      if(record.indmeldelsesdato)
+        gcEntry.gContact$event = {'when': record.indmeldelsesdato.split('-').reverse().join('-'), 'label':'Indmeldt DDS'};
+      if(record.medlemsnr)
+        gcEntry.gContact$externalId = {'value': record.medlemsnr, 'label':'DDS', 'rel':'organization'};
+      if(record.kn)
+        gcEntry.gContact$gender = {'value': record.kn=='M'?'male':'female'};
     }
   });
 
@@ -119,18 +162,12 @@ function createAndFillGroup( groupName, contacts) {
   createGroup(groupName).then((data,status,xhr)=>{
     var record, groupid = data.entry.id.$t;
     for (record of contacts) {
-      createContact(record, [groupid]);
+      record.gcEntry.gContact$groupMembershipInfo.push({'href':groupid });
+      createContact(record.gcEntry);
       break;
     }
   });
 }
-
-var rel = {
-  'home': 'http://schemas.google.com/g/2005#home',
-  'work': 'http://schemas.google.com/g/2005#work',
-  'other': 'http://schemas.google.com/g/2005#other',
-  'mobile': 'http://schemas.google.com/g/2005#mobile',
-};
 
 function createGroup(groupName) {
   if(!groupName)  groupName = 'G'+Date.now();
@@ -147,49 +184,8 @@ function createGroup(groupName) {
   }).always(console.log);
 }
 
-function createContact( data,groups=[]) {
-  console.log('createContact', data);
-  //  Name is mandatory
-  //  and empty containers will collapse.
-  var entry = {
-    'gd$name': {'gd$fullName':{'$t':data.name}},
-    'gd$phoneNumber': [],
-    'gd$email': [],
-    'gd$structuredPostalAddress': [],
-    'gContact$groupMembershipInfo': [],
-  };
-  //  Add phone, mail and addresses
-  for (var r in rel){
-    //  Add phone
-    var value = data[r+'Phone'];
-    if( value)
-      entry.gd$phoneNumber.push({
-        'rel':r,
-        '$t':value,
-        'primary': r=='mobile'
-      });
-    //  Add email
-    value = data[r+'Email'];
-    if( value)
-      entry.gd$email.push({
-        'rel':r,
-        '$t':value,
-        'primary': r=='home'
-      });
-    //  Add address
-    value = data[r+'Address'];
-    if( value)
-      entry.gd$structuredPostalAddress.push({
-        'rel':r,
-        'gd$formattedAddress':{'$t':value}
-      });
-  }
-  //  Add groups
-  for (var group of groups)
-    entry.gContact$groupMembershipInfo.push({
-      'href':group });
-
-  //  Make request
+function createContact( gcEntry) {
+  console.log('createContact', gcEntry);
   return $.ajax({
     'method':'post',
     'url':'https://content.googleapis.com/m8/feeds/contacts/default/full',
@@ -198,6 +194,6 @@ function createContact( data,groups=[]) {
       'gdata-version':'3.0',
       'authorization':'Bearer '+auth.access_token,
       },
-    'data': JSON.stringify( {'entry':entry})
+    'data': JSON.stringify( {'entry':gcEntry})
   }).always(console.log);
 }
