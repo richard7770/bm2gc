@@ -1,6 +1,6 @@
 
 //  Group names to create
-var primaryName = 'Spejdere';
+var primaryName = '3Spejdere';
 var secondaryName = 'Forældre';
 
 
@@ -108,9 +108,13 @@ function handleCsv(csv) {
       if(record.fdselsdato)
         gcEntry.gContact$birthday = {'when': record.fdselsdato.split('-').reverse().join('-')};
       if(record.indmeldelsesdato)
-        gcEntry.gContact$event = {'when': record.indmeldelsesdato.split('-').reverse().join('-'), 'label':'Indmeldt DDS'};
+        gcEntry.gContact$event = [{
+          'gd$when': {'startTime':record.indmeldelsesdato.split('-').reverse().join('-')},
+          'label': 'IndmeldtDDS'}];
       if(record.medlemsnr)
-        gcEntry.gContact$externalId = {'value': record.medlemsnr, 'label':'DDS', 'rel':'organization'};
+        gcEntry.gContact$externalId = [{
+          'value': record.medlemsnr,
+          'label':'Medlemsnr DDS'}];
       if(record.kn)
         gcEntry.gContact$gender = {'value': record.kn=='M'?'male':'female'};
     }
@@ -185,7 +189,7 @@ function createGroup(groupName) {
 }
 
 function createContact( gcEntry) {
-  console.log('createContact', gcEntry);
+  console.log('createContact', gcEntry.gd$name.gd$fullName.$t, gcEntry);
   return $.ajax({
     'method':'post',
     'url':'https://content.googleapis.com/m8/feeds/contacts/default/full',
