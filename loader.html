@@ -20,7 +20,7 @@
   <body>
     <p> Load javascript via messaging in order to serve js via http into https. </p>
     <p> Only for local use. </p>
-    <code>
+    <pre>
       javascript:
       (function() {
         var base = 'http://localhost:7780';
@@ -34,6 +34,6 @@
         }});
         var nw=window.open(base+'/loader.html','_blank');
       })()
-    </code>
+    </pre>
   </body>
 </html>

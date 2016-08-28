@@ -1,7 +1,5 @@
 (function() {
-
-
-  //  URL to authorization page
+  //  URL for authorization page
   var secret = 'g'+Math.floor(1e9*Math.random());
   var auth = {
     'client_id': '339808440187-1l9an0suebhb8rkidhd6bseemc07lck9.apps.googleusercontent.com',
@@ -16,73 +14,62 @@
       key => key+'='+encodeURIComponent(auth[key])
     ).join('&');
 
-  if( window.location.href == 'https://ddsmedlem.cbrain.dk/member.aspx?func=organization.trustcodelist')
-    start();
+  //  csv  will be a ProgressEvent
+  //  port will be a ChannelPort
+  var [csvReady, portReady] = mergeThreads( 'csv port',
+    data => {data.port.postMessage(data.csv.target.responseText)}
+  );
+
+  //  Entrypoint
+  if( window.location.href == 'https://ddsmedlem.cbrain.dk/member.aspx?func=organization.trustcodelist') {
+    openProcessWindow();
+    exportCsv1();
+  }
   else
     alert('Dette script kan kun bruges på fanebladet "Funktioner" i Blåt Medlem.');
 
-  //  csv will be a string
-  //  dst will be a port for channel messaging
-  var [csvReady, dstReady] = makeWait( 'csv dst', postCsv);
-
-  function postCsv(data) {
-    data.dst.postMessage(data.csv.target.responseText);
-  }
-
-  function start() {
-    //  Listen for the process window
+  function openProcessWindow() {
     window.addEventListener('message', function listener(ev) {
-      if(ev.source === processWindow && ev.data == secret && ev.ports.length === 1) {
+      if(ev.source === processWindow && ev.data == secret && ev.ports.length == 1) {
         window.removeEventListener('message', listener);
-        dstReady( ev.ports.shift());
+        portReady( ev.ports.shift());
       }
     });
-    //  Open the process window
     var processWindow = window.open(authurl, '_blank');
-    //  Extract csv text
-    runFromList();
   }
 
-  function runFromList(ev)
-  {
-    var doc = ev && ev.constructor === ProgressEvent ? xhrToDoc(ev.target) : document;
-    var form = doc.forms[0];
+  function exportCsv1() {
+    console.log('exportCsv1');
+    var form = document.forms[0];
+    var action = form.getAttribute('action');
     var inputs = form.querySelectorAll('input[type=checkbox][checked],select,input[type=submit][name*=exportButton],input[type=hidden]');
     var override = {
       "T$P$M$Main$form1$filterDropDown": "onlyScouts",
       "T$P$M$Main$form1$exportChoice": "BothRelativeAndMember"
     };
-    var action = form.getAttribute('action');
-
-    doPost( null, action, inputs, loadPopup, override);
+    doPost( form.action, inputs, exportCsv2, override);
   }
 
-
-  function loadPopup(ev)
-  {
-    //  'this' is the xhr of clicking the Export button
-    //  it contains a link toward the popup
-    var doc = ev && ev.constructor === ProgressEvent ? xhrToDoc(ev.target) : document;
+  function exportCsv2(ev) {
+    console.log('exportCsv2', ev);
+    var doc = parseHtml(ev.target);
     var alink = doc.querySelector('a[onclick*="export.view"]');
     var href = alink.getAttribute('onclick').match(/'(.+?)'/)[1];
-    doGet( this, href, runFromPopup);
+    doGet( href, exportCsv3);
   }
 
-
-  //  Respond to click in popup
-  function runFromPopup(ev){
-    console.log(["runFromPopup", ev, this]);
-    var doc = ev && ev.constructor === ProgressEvent ? xhrToDoc(ev.target) : document;
-    var form = doc.forms[0];
+  function exportCsv3(ev) {
+    console.log("exportCsv3", ev);
+    var form = parseHtml(ev.target).forms[0];
+    var action = form.getAttribute('action');
     //  Intentionally disregarding the checked-state
     var inputs = form.querySelectorAll('input[type=checkbox],input[type=submit][name*=exportButton],input[type=hidden]');
-    var action = form.getAttribute('action');
-    doPost( null, action, inputs, csvReady, undefined, 'text/plain; charset=latin1');
+    doPost( action, inputs, csvReady, undefined, 'text/plain; charset=latin1');
   }
 
   //  Utility  ////////////////////////////////////////////////////////
 
-  function makeWait(keys, callback) {
+  function mergeThreads( keys, callback) {
     if( typeof(keys)=='string')  keys = keys.match(/\S+/g);
     var data = {};
     var count = keys.length;
@@ -96,107 +83,45 @@
     });
   }
 
-  function build( code, parent, nextSibling, ...args) {
-    var buildreelm = /(\(|\))|(".+?"|\w+|\?)([^() ]+)?/g;
-    var buildreprop = /([.:#])([.?\w]+)(?:=([^,]+))?/g;
-    function qmark( str) {
-      if (str=="?")
-      return args.shift();
-      else
-      return str;
-    }
-    if(typeof(parent)=='string')
-    parent = document.querySelector(parent);
-    if(typeof(nextSibling)=='string')
-    nextSibling = document.querySelector(nextSibling);
-    var newNodes = [];
-    var m, elm;
-    while( m = buildreelm.exec(code))
-    switch (m[1]) {
-      case '(':
-      parent = elm;
-      break;
-      case ')':
-      parent = parent.parentNode;
-      break;
-      default:
-      var mm;
-      //  Create Text
-      if( mm = m[2].match(/^"(.+)"$/))
-      elm = document.createTextNode( qmark(mm[1]) );
-      //  Create Element
-      else {
-        elm = document.createElement( qmark(m[2]));
-        //  Set properties
-        while( mm = buildreprop.exec(m[3]))
-        {
-          var [all,type,key,value] = mm;
-          var keyparts = key.split('.');
-          switch (type) {
-            case '.':   //  Class
-            elm.className = keyparts.map(qmark).join(' ');
-            break;
-            case '#':   //  Id
-            elm.id = qmark(key);
-            break;
-            case ':':   //  JS Property (deep)
-            var owner = elm;
-            while( keyparts.length > 1)
-            owner = owner[qmark(keyparts.shift())];
-            owner[qmark(keyparts.shift())] = qmark( value);  // Yes, lhs destination _is_ evaluated first
-          }
-        }
-      }
-      newNodes.push(elm);
-      if(parent)
-      parent.appendChild(elm);
-      else if(nextSibling)
-      nextSibling.parentNode.insertBefore(elm, nextSibling);
-    }
-    return newNodes;
-  }
-
-  function doGet(xhr, href, onload) {
-    console.log('Getting: '+href);
-    // debugger;
-    xhr = xhr || new XMLHttpRequest();
-    xhr.onload = onload;
-    // xhr.onreadystatechange = getXhrWatch();
+  function doGet(href, onload) {
+    console.log('doGet', href);
+    xhr = new XMLHttpRequest();
     xhr.open('GET', href, true);
+    xhr.onload = ev => {ev.target.readyState==4 && ev.target.status==200 && onload(ev)};
     xhr.send();
-    return xhr;
   }
 
-  function doPost( xhr, action, inputs=[], onload=null, override={}, overrideMime=null) {
-    var name,merge = {};
+  function doPost( action, inputs=[], onload=null, override={}, overrideMime=null) {
+    console.log('doPost', action);
+    //  Merge inputs with override
+    var name,dataObj = {};
     for( var e,i=0; e = inputs[i++];)
-    merge[e.name] = e.value;
+      dataObj[e.name] = e.value;
     for( name in override)
-    merge[name] = override[name];
-
+      dataObj[name] = override[name];
+    //  Serialize
     var sep = '--rrpsendj01';
-    var data = '';
-    for( name in merge)
-    data += '--' + sep + '\r\nContent-Disposition: form-data; name="' + name + '"\r\n\r\n' + merge[name] + '\r\n';
-    data += '--' + sep + '--\r\n';
-
-    console.log('Posting: '+action);
-    // debugger;
-    xhr = xhr || new XMLHttpRequest();
-    xhr.onload = onload;
-    // xhr.onreadystatechange = getXhrWatch();
+    var dataStr = '';
+    for( name in dataObj)
+      dataStr += '--' + sep
+        + '\r\nContent-Disposition: form-data; name="'
+        + name + '"\r\n\r\n'
+        + dataObj[name] + '\r\n';
+    dataStr += '--' + sep + '--\r\n';
+    //  Request
+    xhr = new XMLHttpRequest();
     xhr.open('POST', action, true);
+    xhr.onload = ev => {ev.target.readyState==4 && ev.target.status==200 && onload(ev)};
     if(overrideMime)
-    xhr.overrideMimeType( overrideMime);
+      xhr.overrideMimeType( overrideMime);
     xhr.setRequestHeader('Content-type', 'multipart/form-data; boundary='+sep);
-    xhr.send(data);
-    return xhr;
+    xhr.send(dataStr);
   }
 
-  function xhrToDoc(xhr)
+  function parseHtml(xhr)
   {
-    return (new DOMParser()).parseFromString(xhr.responseText, 'text/html');
+    var parser = new DOMParser();
+    return parser.parseFromString(xhr.responseText, 'text/html');
   }
-
 
 })();
