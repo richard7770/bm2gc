@@ -4,7 +4,7 @@ Import data from DDS Blåt Medlem to Google Contacts
 You should make a bookmark of the following injection link and then click that bookmark 
 while browsing the 'Funktioner' tab of blaatmedlem.dk.
 ```
-javascript:(function(){document.head.appendChild(document.createElement('script')).src='https://cdn.rawgit.com/richard7770/bm2gc/tree/v0.1/load.js'})()
+javascript:(function(){document.head.appendChild(document.createElement('script')).src='https://cdn.rawgit.com/richard7770/bm2gc/v0.1/load.js'})()
 ```
 This will create two new groups in Google Contacts, called 'Spejdere' and 'Forældre'.
 
