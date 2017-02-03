@@ -17,15 +17,36 @@ var rawEmail = {
 };
 
 //
-//  Parse the URL fragment into 'auth'
+//  Parse the URL fragment into 'fragment'
 //  Returns true on success
 //
-function getToken() {
+var fragment = {};
+function parseFragment() {
   var m, re=/(\w+)=([^&]*)/g;
   while( m = re.exec(window.location.hash))
-    auth[m[1]] = decodeURIComponent(m[2]);
-  if (auth.access_token) return true;
-  else return false;
+    fragment[m[1]] = decodeURIComponent(m[2]);
+  if(fragment.state)
+    fragment.state = JSON.parse( fragment.state);
+}
+
+//  
+//  Verify that the token refers to the intended google project
+//  
+var client_id = '637601984471-e5tn9qk8mds51b069vgd7tap5fl801re.apps.googleusercontent.com';
+var verifyUrl = 'https://www.googleapis.com/oauth2/v3/tokeninfo';
+function verifyToken() {
+  if( fragment.debug == 'local') 
+    return $.Deferred().resolve();
+  else if (!fragment.access_token) 
+    return $.Deferred().reject('Unable to find access_token in fragment.');
+  return $.ajax({
+    'url': verifyUrl,
+    'dataType': 'json',
+    'data': {'access_token': fragment.access_token}
+  }).then( (data,status,xhr) => {
+    if (data.aud !== client_id)
+      return $.Deferred().reject('Verification failed: Wrong audience');
+  });
 }
 
 //
@@ -60,7 +81,7 @@ function ajaxM8(data, method='get', feed='contacts',
     'contentType':type,
     'headers':{
       'gdata-version':'3.0',
-      'authorization':'Bearer '+auth.access_token,
+      'authorization':'Bearer '+fragment.access_token,
       },
     'data': data
   }).always(console.log).done(d=>{window.data=d});
